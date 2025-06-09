@@ -4,7 +4,7 @@ import gradio as gr
 from tensorflow.keras.models import load_model
 
 # Load the model and face detector
-model = load_model("model.h5")
+model = load_model("model.keras")
 face_cascade = cv2.CascadeClassifier("haarcascade_frontalface_default.xml")
 
 def detect_mask(image):
