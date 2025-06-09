@@ -32,7 +32,7 @@ def detect_mask(image):
 
 iface = gr.Interface(
     fn=detect_mask,
-    inputs=gr.Image(source="webcam", tool="editor", type="numpy"),
+    inputs=gr.Image(type="numpy"),
     outputs=gr.Image(type="numpy"),
     title="Real-Time Face Mask Detection",
     description="Upload an image to detect whether people are wearing masks."
