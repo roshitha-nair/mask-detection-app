@@ -1,66 +1,42 @@
 import cv2
 import numpy as np
-import streamlit as st
-from keras.models import load_model
-from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
-from collections import deque
+import gradio as gr
+from tensorflow.keras.models import load_model
 
-model = load_model("model.h5")
-face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+# Load your trained mask detection model
+model = load_model('mask_detector_model.h5')
 
-CONFIDENCE_THRESHOLD = 0.85
-HYSTERESIS_MARGIN = 0.1
-SMOOTHING_FRAMES = 30
-predictions_queue = deque(maxlen=SMOOTHING_FRAMES)
+# Load face detector (Haar cascade or any other)
+face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
 
-RTC_CONFIGURATION = RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
+def detect_mask(image):
+    img = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    faces = face_cascade.detectMultiScale(img, scaleFactor=1.1, minNeighbors=5)
 
-class VideoProcessor(VideoProcessorBase):
-    def __init__(self):
-        self.last_label = None
-        self.last_confidence = 0.0
+    for (x, y, w, h) in faces:
+        face_img = img[y:y+h, x:x+w]
+        face_img = cv2.resize(face_img, (224, 224))
+        face_img = face_img / 255.0
+        face_img = np.expand_dims(face_img, axis=0)
 
-    def preprocess_face(self, face_img):
-        face = cv2.resize(face_img, (150, 150))
-        face = cv2.cvtColor(face, cv2.COLOR_BGR2RGB)
-        face = face / 255.0
-        return np.expand_dims(face, axis=0)
+        prediction = model.predict(face_img)
+        mask_prob = prediction[0][0]
+        
+        label = "Mask" if mask_prob > 0.5 else "No Mask"
+        color = (0, 255, 0) if mask_prob > 0.5 else (0, 0, 255)
+        
+        cv2.rectangle(image, (x, y), (x+w, y+h), color, 2)
+        cv2.putText(image, label, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
 
-    def recv(self, frame):
-        img = frame.to_ndarray(format="bgr24")
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    return image
 
-        faces = face_cascade.detectMultiScale(gray, 1.3, 5)
-        if len(faces) > 0:
-            (x, y, w, h) = faces[0]
-            face_img = img[y:y+h, x:x+w]
+iface = gr.Interface(
+    fn=detect_mask,
+    inputs=gr.Image(source='upload', tool='editor'),
+    outputs=gr.Image(type="numpy"),
+    title="Real-Time Face Mask Detection",
+    description="Upload an image to detect whether people are wearing masks."
+)
 
-            if face_img.size != 0:
-                face_input = self.preprocess_face(face_img)
-                confidence = model.predict(face_input, verbose=0)[0][0]
-                predictions_queue.append(confidence)
-
-                avg_confidence = sum(predictions_queue) / len(predictions_queue)
-
-                if self.last_label is None:
-                    label = 1 if avg_confidence >= CONFIDENCE_THRESHOLD else 0
-                else:
-                    if self.last_label == 1 and avg_confidence < CONFIDENCE_THRESHOLD - HYSTERESIS_MARGIN:
-                        label = 0
-                    elif self.last_label == 0 and avg_confidence > CONFIDENCE_THRESHOLD + HYSTERESIS_MARGIN:
-                        label = 1
-                    else:
-                        label = self.last_label
-
-                self.last_label = label
-                self.last_confidence = avg_confidence
-
-                label_text = "Wearing Mask" if label == 0 else "Not Wearing Mask"
-                color = (0, 255, 0) if label == 0 else (0, 0, 255)
-                cv2.rectangle(img, (x, y), (x+w, y+h), color, 2)
-                cv2.putText(img, label_text, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
-
-        return img
-
-st.title("Real-Time Face Mask Detection")
-webrtc_streamer(key="mask-detection", video_processor_factory=VideoProcessor, rtc_configuration=RTC_CONFIGURATION)
+if __name__ == "__main__":
+    iface.launch()
