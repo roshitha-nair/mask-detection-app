@@ -4,7 +4,7 @@ import gradio as gr
 from tensorflow.keras.models import load_model
 
 # Load your trained mask detection model
-model = load_model('mask_detector_model.h5')
+model = load_model('model.h5')
 
 # Load face detector (Haar cascade or any other)
 face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
@@ -22,7 +22,7 @@ def detect_mask(image):
         prediction = model.predict(face_img)
         mask_prob = prediction[0][0]
         
-        label = "Mask" if mask_prob > 0.5 else "No Mask"
+        label = "Wearing Mask" if mask_prob > 0.5 else "Not Wearing Mask"
         color = (0, 255, 0) if mask_prob > 0.5 else (0, 0, 255)
         
         cv2.rectangle(image, (x, y), (x+w, y+h), color, 2)
@@ -32,7 +32,7 @@ def detect_mask(image):
 
 iface = gr.Interface(
     fn=detect_mask,
-    inputs=gr.Image(source='upload', tool='editor'),
+    inputs=gr.Image(source="webcam", tool="editor", type="numpy"),
     outputs=gr.Image(type="numpy"),
     title="Real-Time Face Mask Detection",
     description="Upload an image to detect whether people are wearing masks."
