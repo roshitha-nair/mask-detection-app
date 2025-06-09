@@ -1,4 +1,1 @@
-tensorflow
-opencv-python
-numpy
-gradio
+streamlittensorflowopencv-pythonnumpypillow
